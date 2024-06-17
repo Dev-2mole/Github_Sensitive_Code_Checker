@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Scan Results</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .code-block {
+            background-color: #f4f4f4;
+            padding: 10px;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            border: 1px solid #ddd;
+            display: none; /* 기본적으로 숨김 */
+        }
+        .code-line {
+            display: flex;
+        }
+        .line-number {
+            width: 30px;
+            text-align: right;
+            margin-right: 10px;
+            color: #888;
+            user-select: none;
+        }
+        .highlight {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Scan Results</h1>
+    <div th:if="${not #lists.isEmpty(scanResults)}">
+        <p>Profile URL: <span th:text="${profileUrl}"></span></p>
+        <p>Total Repositories Scanned: <span th:text="${#lists.size(scanResults)}"></span></p>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Repository</th>
+                    <th>Detected Sensitive Info</th>
+                    <th>Total Lines of Code</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="repo, repoStat : ${scanResults}">
+                    <td th:text="${repo.name}"></td>
+                    <td th:text="${repo.detectCount}"></td>
+                    <td th:text="${repo.totalLines}"></td>
+                    <td>
+                        <div th:if="${not #lists.isEmpty(repo.detectedUrls)}">
+                            <div th:each="detectedUrl, urlStat : ${repo.detectedUrls}">
+                                <button class="toggle-button" th:data-repo-index="${repoStat.index}" th:data-code-index="${urlStat.index}">View Code</button>
+                                <div class="code-block"></div>
+                            </div>
+                        </div>
+                        <div th:if="${#lists.isEmpty(repo.detectedUrls)}">
+                            No sensitive info detected
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div th:if="${#lists.isEmpty(scanResults)}">
+        <p>No repositories scanned.</p>
+    </div>
+
+    <script>
+        window.scanResults = /*[[${scanResults}]]*/ {};
+    </script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>GitHub Profile Scanner</title>
+    <style>
+        .code-block {
+            background-color: #f4f4f4;
+            padding: 10px;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            border: 1px solid #ddd;
+            position: relative;
+        }
+        .code-line {
+            display: flex;
+        }
+        .line-number {
+            width: 30px;
+            text-align: right;
+            margin-right: 10px;
+            color: #888;
+            user-select: none;
+        }
+        #loadingOverlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 20;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-top: 16px solid #2b2a2a;
+            border-radius: 50%;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script th:inline="javascript">
+        /*<![CDATA[*/
+        var scanResults = /*[[${scanResults}]]*/ [];
+        console.log('scanResults: ', scanResults);
+        /*]]>*/
+    </script>
+    <script>
+        $(document).ready(function() {
+            $("#loadingOverlay").hide();
+            $("#scanForm").submit(function(event) {
+                event.preventDefault();
+                $("#loadingOverlay").show();
+                $.ajax({
+                    url: "/scan",
+                    method: "POST",
+                    data: $(this).serialize(),
+                    contentType: "application/x-www-form-urlencoded",
+                    success: function(response) {
+                        $("#loadingOverlay").hide();
+                        displayResults(response);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error(xhr, status, error);
+                        $("#loadingOverlay").hide();
+                        alert("오류가 발생했습니다.");
+                    }
+                });
+            });
+
+            function displayResults(data) {
+                console.log('displayResults data: ', data);
+                var html = generateResultHtml(data);
+                $("#resultContainer").html(html);
+            }
+
+            function generateResultHtml(data) {
+                var html = '<h2>탐지 결과</h2>';
+                if (data.length > 0) {
+                    html += '<p>탐지된 레퍼지토리 수: ' + data.length + '</p>';
+                    html += '<table><thead><tr><th>레퍼지토리</th><th>탐지된 개인정보 수</th><th>전체 코드 라인 수</th><th>감지된 코드</th></tr></thead><tbody>';
+                    for (var i = 0; i < data.length; i++) {
+                        html += '<tr>';
+                        html += '<td>' + data[i].name + '</td>';
+                        html += '<td>' + data[i].detectCount + '</td>';
+                        html += '<td>' + data[i].totalLines + '</td>';
+                        html += '<td>';
+                        if (data[i].detectedUrls.length > 0) {
+                            html += '<button class="toggle-button">코드 보기</button>';
+                            html += '<div class="code-block" style="display: none;">';
+                            for (var j = 0; j < data[i].detectedUrls.length; j++) {
+                                var fileInfo = data[i].detectedUrls[j];
+                                html += '<div><strong>File:</strong> ' + fileInfo.filePath + '<br><strong>Info:</strong> ' + fileInfo.sensitiveInfo + '</div>';
+                            }
+                            html += '</div>';
+                        } else {
+                            html += '탐지된 코드 없음';
+                        }
+                        html += '</td>';
+                        html += '</tr>';
+                    }
+                    html += '</tbody></table>';
+                }
+                // 세부 탐지 결과 추가
+                for (var i = 0; i < data.length; i++) {
+                    if (data[i].detectCount > 0) {
+                        html += '<div>';
+                        html += '<h2>세부 탐지 결과</h2>';
+                        html += '<p>저장소: ' + data[i].name + '</p>';
+                        html += '<p>탐지된 개인정보 수: ' + data[i].detectCount + '</p>';
+                        html += '<p>전체 코드 라인 수: ' + data[i].totalLines + '</p>';
+
+                        html += '<h3>주민등록번호</h3>';
+                        html += '<table>';
+                        data[i].detectedUrls.forEach(function(item) {
+                            if (item.sensitiveInfo.match(/\d{2}([0]\d|[1][0-2])([0][1-9]|[1-2]\d|[3][0-1])[-]*[1-4]\d{6}/)) {
+                                html += '<tr><td>' + item.sensitiveInfo + '</td><td>' + item.filePath + '</td></tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        html += '<h3>전화번호</h3>';
+                        html += '<table>';
+                        data[i].detectedUrls.forEach(function(item) {
+                            if (item.sensitiveInfo.match(/01[016789]-\d{3,4}-\d{4}/)) {
+                                html += '<tr><td>' + item.sensitiveInfo + '</td><td>' + item.filePath + '</td></tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        html += '<h3>AWS Access Key</h3>';
+                        html += '<table>';
+                        data[i].detectedUrls.forEach(function(item) {
+                            if (item.sensitiveInfo.match(/(?<![A-Z0-9])[A-Z0-9]{20}(?![A-Z0-9])/)) {
+                                html += '<tr><td>' + item.sensitiveInfo + '</td><td>' + item.filePath + '</td></tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        html += '<h3>AWS Secret Access Key</h3>';
+                        html += '<table>';
+                        data[i].detectedUrls.forEach(function(item) {
+                            if (item.sensitiveInfo.match(/(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])/)) {
+                                html += '<tr><td>' + item.sensitiveInfo + '</td><td>' + item.filePath + '</td></tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        html += '<h3>IP</h3>';
+                        html += '<table>';
+                        data[i].detectedUrls.forEach(function(item) {
+                            if (item.sensitiveInfo.match(/(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])/)) {
+                                html += '<tr><td>' + item.sensitiveInfo + '</td><td>' + item.filePath + '</td></tr>';
+                            }
+                        });
+                        html += '</table>';
+
+                        html += '</div>';
+                    }
+                }
+                return html;
+            }
+
+            $(document).on("click", ".toggle-button", function() {
+                $(this).next(".code-block").toggle();
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>GitHub Profile Scanner</h1>
+    <form id="scanForm" action="/profile" method="post">
+        <input type="text" name="profileUrl" placeholder="GitHub 프로필 URL 입력">
+        <button type="submit">스캔</button>
+    </form>
+
+    <div id="loadingOverlay">
+        <div class="loader"></div>
+        <h3>Now Scanning...</h3>
+    </div>
+
+    <div id="resultContainer"></div>
+</body>
+</html>

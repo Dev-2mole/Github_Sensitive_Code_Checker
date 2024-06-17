@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Code Viewer</title>
+    <style>
+        .code-editor {
+            width: 100%;
+            height: 500px;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            resize: vertical;
+            white-space: pre-wrap;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <script>
+        $(document).ready(function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const filePath = urlParams.get('filePath');
+            const codeSnippet = decodeURIComponent(urlParams.get('codeSnippet'));
+    
+            const codeEditor = $('<pre>').addClass('code-editor').html(codeSnippet);
+            $('body').append(codeEditor);
+        });
+    </script>
+</head>
+<body>
+</body>
+</html>
